@@ -63,6 +63,8 @@ Fetch the component node and search for related components in the file:
 {{figma_script}} search_components <file_key> "<component name>"
 ```
 
+Once fetched, check for a `description` field on the component and on each variant node. Designers often annotate components with intended usage, prop constraints, or behavior notes. If present, treat these as authoritative design intent — they take precedence over visual inference.
+
 ---
 
 ## 2. Inventory variants and states
@@ -75,8 +77,9 @@ Inspect the node tree and identify every variant or state defined in Figma:
 | **Interactive states** | `hover`, `focus`, `active`, `disabled`, `loading` nodes or boolean properties |
 | **Content slots** | Optional children: leading icon, trailing icon, label, badge, avatar |
 | **Responsive** | Separate mobile variants or auto-layout breakpoints |
+| **Designer notes** | `description` fields on the component set or individual variants — may clarify when a variant should be used, what a prop controls, or behaviors not visible in the design |
 
-List every variant and state before writing any code.
+List every variant and state before writing any code. If a `description` clarifies or contradicts what the visual tree suggests, note the discrepancy and follow the description.
 
 ---
 
@@ -161,6 +164,7 @@ This doubles as a smoke test and makes the component immediately usable by teamm
 
 - [ ] Every Figma variant has a corresponding prop value
 - [ ] Every interactive state (hover, focus, loading, disabled) is implemented
+- [ ] Designer `description` notes read and applied where relevant
 - [ ] No hardcoded color or font values — CSS variables only
 - [ ] No API calls or external dependencies
 - [ ] Usage example covers all main variants

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const config = require('../config');
+const config = require('./config');
 const {TOKEN} = config;
 if (!TOKEN) {
   console.error(JSON.stringify({ error: "Missing FIGMA_TOKEN env var" }));

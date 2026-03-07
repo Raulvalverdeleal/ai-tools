@@ -1,8 +1,8 @@
 ---
-description: Translate a Figma frame or section into production-ready layout code. Mocks data and requests, keeps interactivity.
+description: Translate a Figma component (button, input, navbar, card, etc.) into a reusable, self-contained codebase component.
 ---
 
-# figma-create-from-selection
+# figma-create-component
 
 <!-- ================================================================
   WORKFLOW VARIABLES
@@ -17,10 +17,8 @@ framework:         ?   # react | vue | svelte | astro
 language:          ?   # typescript | javascript
 styling:           ?   # tailwind | css-modules | styled-components | scss
 components_dir:    ?   # e.g. src/components
-pages_dir:         ?   # e.g. src/pages or src/app (Next.js app router: src/app)
 public_dir:        ?   # e.g. public
 styles_file:       ?   # path to global CSS variables file, e.g. src/styles/variables.css
-router:            ?   # nextjs-app | nextjs-pages | react-router | nuxt | sveltekit
 ```
 
 ---
@@ -40,10 +38,8 @@ Read the `workflow.config` block above. For each variable still set to `?`:
 | `language` | TypeScript or JavaScript? |
 | `styling` | Styling approach? (`tailwind` / `css-modules` / `styled-components` / `scss`) |
 | `components_dir` | Where do components live? (e.g. `src/components`) |
-| `pages_dir` | Where do pages/routes live? (e.g. `src/pages`, `src/app`) |
 | `public_dir` | Where are static assets served from? (e.g. `public`) |
 | `styles_file` | Where is the global CSS variables file? |
-| `router` | Which router? (`nextjs-app` / `nextjs-pages` / `react-router` / `nuxt` / `sveltekit`) |
 
 Once all variables are set, proceed to step 1.
 
@@ -55,147 +51,120 @@ Extract `file_key` and `node_id` from the Figma URL:
 
 ```
 https://www.figma.com/file/FILE_KEY/Name?node-id=NODE_ID
-                        ^^^^^^^^                ^^^^^^^^
 ```
 
 - `FILE_KEY` → everything between `/file/` and the next `/`
 - `NODE_ID` → the `node-id` query param — replace `-` with `:` for the API
 
-Fetch the selected node and get a broad orientation of the file:
+Fetch the component node and search for related components in the file:
 
 ```bash
 {{figma_script}} read_nodes <file_key> <node_id>
-{{figma_script}} discover <file_key>
+{{figma_script}} search_components <file_key> "<component name>"
 ```
 
----
-
-## 2. Classify the selection
-
-Based on the node tree, determine what this frame is. Ask the user if it is not obvious.
-
-| Type | Signals | Output |
-|---|---|---|
-| **New route** | Top-level frame, full viewport width, has a page title or distinct URL concept | New file in `{{pages_dir}}` |
-| **Section** | Part of a larger page, no independent navigation concept | New section component, inserted into an existing route |
-| **Feature block** | Self-contained area (hero, pricing table, testimonials) | New component in `{{components_dir}}`, imported into a route |
-| **Isolated component** | Small, reusable (card, banner, empty state) | → use `figma-create-component` workflow instead |
-
-> If classification is unclear, ask the user: *"Is this a new page, a section within an existing page, or a self-contained block?"*
+Once fetched, check for a `description` field on the component and on each variant node. Designers often annotate components with intended usage, prop constraints, or behavior notes. If present, treat these as authoritative design intent — they take precedence over visual inference.
 
 ---
 
-## 3. Surface ambiguities — ask before building
+## 2. Inventory variants and states
 
-Do not proceed until these are resolved:
+Inspect the node tree and identify every variant or state defined in Figma:
 
-- **Placement:** Which existing route does this belong to, or what is the new route path?
-- **Interaction states:** Are hover, focus, loading, empty, and error states shown in the design? If not, confirm what behavior is expected.
-- **Responsive breakpoints:** Are there mobile/tablet variants in the file? Which breakpoints apply?
-- **Animations:** Are any elements animated? Flag them — implement as static first, leave a `// TODO: animate` comment.
-- **Existing overlap:** Are any components in `{{components_dir}}` already covering part of this design? Check before creating new files.
+| Category | What to look for |
+|---|---|
+| **Variants** | `variant` properties in component sets (e.g. `size=sm/md/lg`, `intent=primary/secondary/danger`) |
+| **Interactive states** | `hover`, `focus`, `active`, `disabled`, `loading` nodes or boolean properties |
+| **Content slots** | Optional children: leading icon, trailing icon, label, badge, avatar |
+| **Responsive** | Separate mobile variants or auto-layout breakpoints |
+| **Designer notes** | `description` fields on the component set or individual variants — may clarify when a variant should be used, what a prop controls, or behaviors not visible in the design |
+
+List every variant and state before writing any code. If a `description` clarifies or contradicts what the visual tree suggests, note the discrepancy and follow the description.
+
+---
+
+## 3. Check for duplicates
+
+Search `{{components_dir}}` for any existing component that covers the same pattern.
+
+- If a partial match exists, extend it — do not create a duplicate.
+- If an exact match exists, stop and tell the user: *"This component already exists at `<path>`. Did you mean to use `figma-update-component` instead?"*
 
 ---
 
 ## 4. Download assets
 
-Scan the node tree for assets that need to be saved to `{{public_dir}}`:
-
-- Image fills (`type: IMAGE`)
-- Vector/SVG nodes (icons, illustrations, logos)
-- Background textures or patterns
-
-For each asset, export and download immediately — URLs expire in ~30 minutes:
+Scan the node tree for SVGs or images embedded in the component (icons, decorative images).
 
 ```bash
-{{figma_script}} export_images <file_key> <node_id> svg     # for vectors
-{{figma_script}} export_images <file_key> <node_id> png 2   # for rasters
+{{figma_script}} export_images <file_key> <node_id> svg
 ```
 
-Save to:
-
-```
-{{public_dir}}/
-  images/    ← raster images (png, jpg)
-  icons/     ← SVG icons
-  logos/     ← brand assets
-```
+Save to `{{public_dir}}/icons/` or `{{public_dir}}/images/` as appropriate.
 
 ---
 
 ## 5. Sync design tokens
 
-Extract all tokens from the file:
+Extract color and typography tokens used by the component:
 
 ```bash
-{{figma_script}} extract_styles <file_key> FILL,TEXT,EFFECT
+{{figma_script}} extract_styles <file_key> FILL,TEXT
 ```
 
-Compare against `{{styles_file}}`. Append only tokens that do not already exist — never overwrite existing values.
-
-```css
-/* {{styles_file}} — append only */
-:root {
-  --color-primary: #3B5BDB;
-  --font-heading: 'Inter', sans-serif;
-  /* ... */
-}
-```
+Append any missing tokens to `{{styles_file}}`. Never overwrite existing values.
 
 ---
 
-## 6. Build sub-components
+## 6. Build the component
 
-Identify every distinct UI piece inside the selection that is not already in `{{components_dir}}`.
+Create the file at `{{components_dir}}/<ComponentName>/<ComponentName>.{{language extension}}`.
 
-For each missing piece:
+**Structure:**
 
-1. Create `{{components_dir}}/<ComponentName>/<ComponentName>.{{language extension}}`
-2. Props interface / type at the top of the file
-3. Static props only — no API calls, no data fetching
-4. Keep all interactions: clicks, hovers, form inputs, toggles, open/close states
-5. Use `{{styling}}` conventions matching the rest of the codebase
+1. **Props interface** — one prop per variant dimension and state:
+   ```ts
+   interface ButtonProps {
+     label: string
+     intent?: 'primary' | 'secondary' | 'danger'
+     size?: 'sm' | 'md' | 'lg'
+     isLoading?: boolean
+     isDisabled?: boolean
+     leadingIcon?: React.ReactNode
+     onClick?: () => void
+   }
+   ```
+
+2. **All variants rendered** — use conditional classes or a variant map, not duplicated JSX blocks.
+
+3. **All interactive states wired up** — hover and focus via CSS, `isLoading` shows a spinner, `isDisabled` blocks interaction.
+
+4. **Fully self-contained** — no API calls, no external state, no routing logic. Props in, UI out.
+
+5. **CSS variables only** — no hardcoded color or font values.
 
 ---
 
-## 7. Mock data and requests
+## 7. Write a usage example
 
-All external data is static. No API calls anywhere in new code.
-
-**Rules:**
-- Define mock data in a sibling `<name>.mock.ts` (or `.js`) file
-- Use realistic content — no Lorem ipsum
-- Mock loading and error states as boolean props (`isLoading`, `hasError`)
-- For requests (forms, mutations): wire up the handler, `console.log` the payload, show a success/error state — do not call any endpoint
-- Replace complex unimplementable pieces (maps, rich editors, charts) with a black placeholder div and a `// TODO:` comment
+At the bottom of the file (or in a sibling `<ComponentName>.stories.tsx` / `<ComponentName>.example.tsx`), add a minimal usage block covering the main variants:
 
 ```tsx
-// TODO: replace with <RevenueChart /> once integrated
-<div style={{ background: '#000', width: '100%', height: 320 }} aria-label="Chart placeholder" />
+// Usage example
+<Button label="Save changes" intent="primary" size="md" />
+<Button label="Delete" intent="danger" isLoading />
+<Button label="Cancel" intent="secondary" isDisabled />
 ```
 
----
-
-## 8. Assemble the layout
-
-Create the route or section file based on the classification in step 2.
-
-1. Import all sub-components from step 6
-2. Pass mock data from step 7 as props
-3. Reference assets from `{{public_dir}}` using the paths from step 4
-4. Use only CSS variables from `{{styles_file}}` — no hardcoded color or font values
-5. Match the Figma frame at the primary breakpoint; add responsive rules for others identified in step 3
+This doubles as a smoke test and makes the component immediately usable by teammates.
 
 ---
 
-## 9. Final checklist
+## 8. Final checklist
 
-Before finishing, verify:
-
-- [ ] All assets are in `{{public_dir}}` and referenced correctly
+- [ ] Every Figma variant has a corresponding prop value
+- [ ] Every interactive state (hover, focus, loading, disabled) is implemented
 - [ ] No hardcoded color or font values — CSS variables only
-- [ ] No API calls in any new file
-- [ ] All interactions work: clicks, forms, toggles, loading states
-- [ ] Every unimplemented piece has a `// TODO:` placeholder
-- [ ] Layout matches the Figma frame at the target breakpoint
+- [ ] No API calls or external dependencies
+- [ ] Usage example covers all main variants
 - [ ] No existing component was duplicated

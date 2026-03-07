@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // --- Configuration & Initialization ---
-const config = require('./config.sample');
+const config = require('./config');
 
 const { SENTRY_TOKEN, SENTRY_ORG, SENTRY_PROJECT, SENTRY_BASE_URL } = config;
 if (!SENTRY_TOKEN || !SENTRY_ORG || !SENTRY_PROJECT || !SENTRY_BASE_URL) {

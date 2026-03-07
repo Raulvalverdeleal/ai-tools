@@ -69,6 +69,8 @@ https://www.figma.com/file/FILE_KEY/Name?node-id=NODE_ID
 {{figma_script}} read_nodes <file_key> <node_id>
 ```
 
+Once fetched, check for a `description` field on the component and on each variant node. Designers often leave update notes here — intended changes, removed behaviors, or migration hints. If present, treat these as authoritative and factor them into the diff before comparing visually.
+
 ---
 
 ## 3. Diff design vs. code
@@ -88,6 +90,7 @@ Examine each dimension:
 | **New variants** | Any variant or state present in Figma that doesn't exist in code |
 | **Removed variants** | Any variant in code that no longer exists in the design |
 | **New assets** | Icons or images added or replaced |
+| **Designer notes** | Any `description` changes that clarify intent or flag behavioral updates |
 
 Present the change list to the user **before touching any code**:
 
@@ -106,6 +109,9 @@ Present the change list to the user **before touching any code**:
 
   Assets
   • Icon "arrow-right" replaced with "chevron-right"
+
+  Designer notes
+  • "ghost variant deprecated, use secondary instead"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -165,6 +171,7 @@ Show a diff summary of every line changed before finishing.
 ## 8. Final checklist
 
 - [ ] Every visual change from the diff has been applied
+- [ ] Designer `description` notes read and applied where relevant
 - [ ] No logic, handlers, or state was modified
 - [ ] No existing props were removed or renamed without confirmation
 - [ ] New assets are in `{{public_dir}}` and referenced correctly
